@@ -60,8 +60,8 @@ var PALETTE = {
   road: 0x33373d,
   lane: 0xe8d44d,
   sidewalk: 0xb9b3a4,
-  buildingRoof: ['#c96f4a', '#d9a05b', '#7d8aa0', '#a8574e', '#5b7d6e', '#8a6f9e', '#b0785a', '#6e8cae'],
-  facade: ['#e8b48a', '#f2d3a0', '#a8bdd0', '#d98a7a', '#9ec2a8', '#c2a8d8', '#e0a878', '#9ab8d8'],
+  buildingRoof: ['#c96f4a', '#d9a05b', '#7d8aa0', '#a8574e', '#5b7d6e', '#8a6f9e', '#b0785a', '#6e8cae', '#ff5fa2', '#00b8a9', '#ff6b35'],
+  facade: ['#e8b48a', '#f2d3a0', '#a8bdd0', '#d98a7a', '#9ec2a8', '#c2a8d8', '#e0a878', '#9ab8d8', '#7b5cff', '#00b8a9', '#ff6b35', '#ff5fa2', '#2ec4b6', '#e36414', '#6c5ce7', '#00cec9'],
   park: 0x5e9e52,
   tree: 0x3f7d3a,
   palm: 0x2e8b57,
@@ -118,7 +118,10 @@ var MISSIONS = [
 ];
 
 var CAR_COLORS = ['#c0392b', '#2e86c1', '#e67e22', '#27ae60', '#8e44ad', '#f1c40f', '#ecf0f1', '#1abc9c', '#e74c3c', '#34495e'];
-var PED_COLORS = ['#e74c3c', '#3498db', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c', '#e67e22', '#ecf0f1'];
+// Pedestrian shirts: deliberately LOUD and saturated (hot pink, electric
+// blue, neon green, taxi yellow, orange, violet, cyan) so a person reads as
+// a bright human figure against asphalt and concrete at a glance.
+var PED_COLORS = ['#ff2d55', '#007aff', '#00c853', '#ffea00', '#ff6d00', '#d500f9', '#00e5ff', '#ff1744'];
 
 // The day-night cycle: one game day lasts about 16 real minutes (1.5 game
 // minutes a real second). Dusk is golden hour; at night the city lights up,

@@ -53,20 +53,25 @@ function stageShot(name, state) {
     var cruisers = state.cars.filter(function (c) { return c.driver === 'police'; });
     for (var ci = 0; ci < cruisers.length; ci += 1) {
       // Offsets are in city-plane units (10 plane units = 1 3D unit): the
-      // cruisers must sit several car-lengths ahead, not one.
-      var side = ci === 0 ? -60 : ci === 1 ? 60 : 0;
-      var ahead = ci === 2 ? 420 : 300;
+      // cruisers sit a few car-lengths ahead, close enough to read in a
+      // low street-level frame instead of vanishing down the road.
+      var side = ci === 0 ? -35 : ci === 1 ? 35 : 0;
+      var ahead = ci === 2 ? 200 : 140;
       cruisers[ci].x = state.player.x + fwdX * ahead - fwdY * side;
       cruisers[ci].y = state.player.y + fwdY * ahead + fwdX * side;
       cruisers[ci].angle = Math.atan2(state.player.y - cruisers[ci].y, state.player.x - cruisers[ci].x);
       cruisers[ci].speed = 220;
     }
-    if (state.world3d) state.world3d.shotCam = { dist: 19, height: 5.0, lookY: 1.3 };
+    // STREET-LEVEL chase cam: low (2.7) and close (10) behind the sport
+    // car, looking slightly up — the yellow car fills the frame, cruisers
+    // ahead, towers looming over the road, not a top-down road shot.
+    if (state.world3d) state.world3d.shotCam = { dist: 10, height: 2.7, lookY: 2.1 };
     // Park the helicopter overhead-ahead of Rico so its searchlight is in
-    // frame (during the scripted drive it lags far behind the car).
+    // frame (during the scripted drive it lags far behind the car): ahead
+    // and slightly to the side, high in the sky the low camera looks up at.
     if (state.heli) {
-      state.heli.x = state.player.x - 60;
-      state.heli.y = state.player.y - 300;
+      state.heli.x = state.player.x - 260;
+      state.heli.y = state.player.y - 40;
     }
     state.messageTimer = 0;
     return 'play';
@@ -85,12 +90,37 @@ function stageShot(name, state) {
     state.camYaw = Math.atan2(480 - 840, 480 - 720);
     state.player.wanted = 0;
     state.messageTimer = 0;
+    // Stage a few pedestrians on the road around Rico so the mission frame
+    // shows people next to buildings and cars: humanoid figures, not boxes.
+    var nearSpots = [[760, 900], [690, 780], [800, 760], [660, 920], [740, 700]];
+    for (var ns = 0; ns < nearSpots.length; ns += 1) {
+      state.peds.push({
+        x: nearSpots[ns][0], y: nearSpots[ns][1],
+        angle: state.rng() * Math.PI * 2, speed: 40,
+        color: PED_COLORS[ns % PED_COLORS.length],
+        pants: ['#2c2c34', '#2c3e50', '#5d4037', '#34495e', '#7a6a53'][ns],
+        skin: ['#e8b98a', '#c98d5f', '#8d5524', '#f2c9a0', '#d9a066'][ns],
+        hair: ['#2c2018', '#111111', '#6b4423', '#b0b0b0', '#c0392b'][ns],
+        hat: [null, 'cap', null, 'helmet', 'beanie'][ns],
+        hatColor: ['#e74c3c', '#f1c40f', '#2e86c1', '#ffffff', '#27ae60'][ns],
+        bag: ns % 2 === 0, bagColor: '#8e44ad',
+        heightScale: 1.2 + ns * 0.05,
+        targetX: 720, targetY: 480, fleeing: false, hostile: false,
+        shootTimer: 0, health: 30, walkPhase: ns * 1.3,
+      });
+    }
+    // STREET-LEVEL mission cam: very low (2.4) and close (6.5) behind Rico,
+    // looking slightly up — Rico and the pedestrians are BIG, the beacon
+    // and the towers rise above them.
+    if (state.world3d) state.world3d.shotCam = { dist: 6.5, height: 2.4, lookY: 1.9 };
     for (var k = 0; k < 120; k += 1) state.update(STEP);
     return 'play';
   }
   if (name === 'city') {
-    // Golden-hour wide shot: Rico drives the taxi north up the downtown
-    // boulevard, towers and neon ahead, beach behind.
+    // Golden-hour street shot: Rico drives the taxi north up the downtown
+    // boulevard, LOW camera close behind the taxi looking UP at the towers
+    // and neon ahead — skyscrapers towering over the street, pedestrians on
+    // the sidewalks in front of them, so the scale reads instantly.
     startMission(state, 2);
     state.screen = 'play';
     state.clockMinutes = 17 * 60 + 40;
@@ -108,8 +138,33 @@ function stageShot(name, state) {
       state.player.y = taxi.y;
       state.camYaw = -Math.PI / 2;
     }
-    if (state.world3d) state.world3d.shotCam = { dist: 22, height: 13, lookY: 2 };
-    scriptedDrive(state, 2, 0);
+    // Pedestrians on the sidewalks ahead of the taxi, in loud shirts, so
+    // the frame shows people at the foot of the towers, not an empty road.
+    // Sidewalk strips are narrow (road edge to building line): x 1738 on
+    // the east side, 1620 on the west — any further out and the tower face
+    // hides them from a low camera. Spots sit just ahead of where the taxi
+    // ends up after the short drive, so the taxi never overtakes them.
+    var citySpots = [[1738, 2150], [1620, 2080], [1738, 1980], [1620, 1900], [1738, 1830]];
+    for (var cs = 0; cs < citySpots.length; cs += 1) {
+      state.peds.push({
+        x: citySpots[cs][0], y: citySpots[cs][1],
+        angle: state.rng() * Math.PI * 2, speed: 40,
+        color: PED_COLORS[cs % PED_COLORS.length],
+        pants: ['#2c2c34', '#2c3e50', '#5d4037', '#34495e', '#7a6a53'][cs],
+        skin: ['#e8b98a', '#c98d5f', '#8d5524', '#f2c9a0', '#d9a066'][cs],
+        hair: ['#2c2018', '#111111', '#6b4423', '#b0b0b0', '#c0392b'][cs],
+        hat: [null, 'cap', 'helmet', null, 'beanie'][cs],
+        hatColor: ['#e74c3c', '#f1c40f', '#2e86c1', '#ffffff', '#27ae60'][cs],
+        bag: cs % 2 === 0, bagColor: '#8e44ad',
+        heightScale: 1.2 + cs * 0.05,
+        targetX: citySpots[cs][0], targetY: citySpots[cs][1] - 200, fleeing: false, hostile: false,
+        shootTimer: 0, health: 30, walkPhase: cs * 1.3,
+      });
+    }
+    if (state.world3d) state.world3d.shotCam = { dist: 11, height: 3.0, lookY: 3.4 };
+    // Short drive on purpose: a full 2 s drive at 100 km/h overtakes the
+    // staged pedestrians and leaves the frame empty of people.
+    scriptedDrive(state, 1.2, 0);
     // Keep the city shot clean: no wanted stars from the scripted drive.
     state.player.wanted = 0;
     state.wantedTimer = 0;

@@ -85,15 +85,41 @@ function createCity(random) {
         var bh = isDowntown ? range(random, 150, 200) : range(random, 100, 160);
         var bx = count === 1 ? centreX - bw / 2 : range(random, x0, x1 - bw);
         var by = count === 1 ? centreY - bh / 2 : range(random, y0, y1 - bh);
+        // EXTREME height contrast so the skyline reads at a glance: downtown
+        // mixes true skyscrapers (up to ~180, twice the old max) with low
+        // shops, and the lowest buildings are still taller than a person.
+        // Super-towers get a landmark silhouette: spire, dome or pyramid.
+        var height;
+        var roofType;
+        if (isDowntown) {
+          var tier = random();
+          if (tier < 0.22) { height = 120 + random() * 60; roofType = pick(random, ['spire', 'dome', 'pyramid', 'stepped']); }
+          else if (tier < 0.32) { height = 85 + random() * 35; roofType = random() < 0.5 ? 'flat' : 'stepped'; }
+          else if (tier < 0.68) { height = 38 + random() * 30; roofType = random() < 0.5 ? 'sloped' : 'stepped'; }
+          else { height = 22 + random() * 12; roofType = 'flat'; }
+        } else {
+          var tier2 = random();
+          if (tier2 < 0.55) { height = 18 + random() * 10; roofType = 'flat'; }
+          else if (tier2 < 0.9) { height = 28 + random() * 16; roofType = random() < 0.5 ? 'sloped' : 'stepped'; }
+          else { height = 48 + random() * 22; roofType = 'stepped'; }
+        }
+        var isShop = height < 24;
         buildings.push({
           x: bx,
           y: by,
           w: bw,
           h: bh,
-          height: isDowntown ? 46 + random() * 42 : 14 + random() * 22,
+          height: height,
           roof: pick(random, PALETTE.buildingRoof),
           facade: pick(random, PALETTE.facade),
-          floors: isDowntown ? 8 + Math.floor(random() * 8) : 2 + Math.floor(random() * 3),
+          floors: Math.max(1, Math.round(height / 7)),
+          roofType: roofType,
+          shop: isShop,
+          shopColor: pick(random, ['#ff5fa2', '#ffd94d', '#7fd0ff', '#ff8a5c', '#7dffc9', '#c98ae8']),
+          shopName: pick(random, ['TOKO', 'CAFE', 'PIZZA', 'SURF', 'BAR', 'MART', 'TACO', 'DISCO']),
+          balconies: height >= 28 && height < 72 && random() < 0.7,
+          waterTank: height > 55 && random() < 0.6,
+          helipad: height > 100,
         });
       }
     }
@@ -116,7 +142,31 @@ function createCity(random) {
   for (var x = 200; x < WORLD.width - 100; x += 260) {
     trees.push({ x: x + range(random, -30, 30), y: WORLD.height - 110, r: 11, palm: true });
   }
-  return { buildings: buildings, trees: trees, parks: parks, landmarks: landmarks, signs: signs, beachY: WORLD.height - 150 };
+  // Street props, seeded so the same seed builds the same street: lamps
+  // along every road, traffic lights at junctions, hydrants near corners,
+  // benches and bins on sidewalks, planters by the parks.
+  var props = [];
+  for (var ri2 = 0; ri2 < xs.length; ri2 += 1) {
+    for (var ry = 240; ry < WORLD.height - 100; ry += 480) {
+      props.push({ kind: 'lamp', x: xs[ri2] + 62, y: ry + range(random, -140, 140) });
+      props.push({ kind: 'lamp', x: xs[ri2] - 62, y: ry + 240 + range(random, -140, 140) });
+      if (random() < 0.55) props.push({ kind: 'hydrant', x: xs[ri2] + 68, y: ry + 210 });
+      if (random() < 0.5) props.push({ kind: 'bin', x: xs[ri2] - 68, y: ry + 90 });
+      if (random() < 0.4) props.push({ kind: 'planter', x: xs[ri2] + 68, y: ry + 330 });
+    }
+  }
+  for (var rj2 = 0; rj2 < ys.length; rj2 += 1) {
+    for (var rx2 = 240; rx2 < WORLD.width - 100; rx2 += 480) {
+      if (random() < 0.6) props.push({ kind: 'bench', x: rx2 + range(random, -120, 120), y: ys[rj2] + 66 });
+      if (random() < 0.45) props.push({ kind: 'sign', x: rx2 + 180, y: ys[rj2] - 66 });
+    }
+  }
+  for (var ji = 0; ji < xs.length; ji += 1) {
+    for (var jj = 0; jj < ys.length; jj += 1) {
+      props.push({ kind: 'trafficLight', x: xs[ji] + 62, y: ys[jj] + 62 });
+    }
+  }
+  return { buildings: buildings, trees: trees, parks: parks, landmarks: landmarks, signs: signs, beachY: WORLD.height - 150, props: props };
 }
 
 // True when a circle of radius r at (x, y) overlaps any building.

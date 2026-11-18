@@ -22,25 +22,47 @@ function makeCanvasTexture(w, h, draw) {
   return tex;
 }
 
-function facadeTexture(baseColor, floors) {
+function facadeTexture(baseColor, floors, rng) {
+  var rand = rng || Math.random;
   return makeCanvasTexture(128, 256, function (ctx, w, h) {
     ctx.fillStyle = baseColor;
     ctx.fillRect(0, 0, w, h);
-    ctx.fillStyle = 'rgba(0,0,0,0.18)';
+    // Subtle vertical panel shading so flat faces read as architecture.
+    ctx.fillStyle = 'rgba(0,0,0,0.10)';
+    for (var p = 0; p < 4; p += 1) ctx.fillRect(p * (w / 4), 0, 2, h);
+    ctx.fillStyle = 'rgba(0,0,0,0.22)';
     ctx.fillRect(0, 0, w, 10);
+    ctx.fillStyle = 'rgba(255,255,255,0.14)';
+    ctx.fillRect(0, 10, w, 3);
+    // Facade windows: up to 20 rows now, so a super-tower reads as many
+    // stacked floors instead of a few stretched window bands.
     var cols = 4;
-    var rows = Math.max(2, Math.min(12, floors));
+    var rows = Math.max(2, Math.min(20, floors));
     var cw = w / cols;
     var ch = (h - 16) / rows;
     for (var r = 0; r < rows; r += 1) {
       for (var c = 0; c < cols; c += 1) {
-        var lit = Math.random() < 0.28;
-        ctx.fillStyle = lit ? '#ffd94d' : '#2a3550';
-        ctx.fillRect(c * cw + cw * 0.22, 12 + r * ch + ch * 0.22, cw * 0.56, ch * 0.52);
-        ctx.fillStyle = 'rgba(255,255,255,0.25)';
-        ctx.fillRect(c * cw + cw * 0.22, 12 + r * ch + ch * 0.22, cw * 0.56, 3);
+        var wx = c * cw + cw * 0.22;
+        var wy = 12 + r * ch + ch * 0.22;
+        var ww = cw * 0.56;
+        var wh = ch * 0.52;
+        // Window frame, then glass: lit warm, lit cool, or dark — never a
+        // flat texture, so a facade reads as windows at a glance.
+        ctx.fillStyle = 'rgba(255,255,255,0.55)';
+        ctx.fillRect(wx - 2, wy - 2, ww + 4, wh + 4);
+        var roll = rand();
+        var lit = roll < 0.22 ? '#ffd94d' : roll < 0.3 ? '#9fd8ff' : '#232c42';
+        ctx.fillStyle = lit;
+        ctx.fillRect(wx, wy, ww, wh);
+        ctx.fillStyle = 'rgba(255,255,255,0.35)';
+        ctx.fillRect(wx, wy, ww, 3);
+        ctx.fillStyle = 'rgba(0,0,0,0.45)';
+        ctx.fillRect(wx + ww / 2 - 1, wy, 2, wh);
       }
     }
+    // Dark plinth at the base so the tower sits on the street, not floats.
+    ctx.fillStyle = 'rgba(0,0,0,0.28)';
+    ctx.fillRect(0, h - 12, w, 12);
   });
 }
 
@@ -95,7 +117,9 @@ function createWorld3D(canvas, state) {
   skyDome.material.map = skyTex.day;
   scene.add(skyDome);
 
-  var camera = new THREE.PerspectiveCamera(62, 1, 0.1, 900);
+  // Wide street-level lens (68 deg): at a low camera it makes towers loom
+  // at the frame edges instead of shrinking them into the distance.
+  var camera = new THREE.PerspectiveCamera(68, 1, 0.1, 900);
 
   var hemi = new THREE.HemisphereLight(0xbfd9ff, 0x8a7a5a, 0.75);
   scene.add(hemi);
@@ -171,11 +195,15 @@ function createWorld3D(canvas, state) {
   ground.position.set(0, 0, 0);
   scene.add(ground);
 
+  // Texture randomness is seeded from the world seed, so the same seed
+  // paints the same windows and asphalt every run (Math.random would not).
+  var texRng = createRandom((state.seed || 7) * 7919 + 5);
+
   var roadTex = makeCanvasTexture(64, 64, function (ctx) {
     ctx.fillStyle = '#33373d';
     ctx.fillRect(0, 0, 64, 64);
     ctx.fillStyle = 'rgba(255,255,255,0.06)';
-    for (var i = 0; i < 40; i += 1) ctx.fillRect(Math.random() * 64, Math.random() * 64, 2, 2);
+    for (var i = 0; i < 40; i += 1) ctx.fillRect(texRng() * 64, texRng() * 64, 2, 2);
   });
   roadTex.wrapS = THREE.RepeatWrapping;
   roadTex.wrapT = THREE.RepeatWrapping;
@@ -212,6 +240,113 @@ function createWorld3D(canvas, state) {
   for (var ri = 0; ri < xs.length; ri += 1) roadStrip(worldX(xs[ri]), 0, WORLD.height / SCALE, false);
   for (var rj = 0; rj < ys.length; rj += 1) roadStrip(0, worldZ(ys[rj]), WORLD.width / SCALE, true);
 
+  // Zebra crossings at every junction: one striped plane per crossing arm.
+  var zebraTex = makeCanvasTexture(64, 64, function (ctx) {
+    ctx.fillStyle = '#33373d';
+    ctx.fillRect(0, 0, 64, 64);
+    ctx.fillStyle = '#f2f2f2';
+    for (var zi = 0; zi < 5; zi += 1) ctx.fillRect(4 + zi * 12, 6, 7, 52);
+  });
+  for (var zxi = 0; zxi < xs.length; zxi += 1) {
+    for (var zyj = 0; zyj < ys.length; zyj += 1) {
+      var zebra = new THREE.Mesh(new THREE.PlaneGeometry(10.5, 6), new THREE.MeshLambertMaterial({ map: zebraTex }));
+      zebra.rotation.x = -Math.PI / 2;
+      zebra.position.set(worldX(xs[zxi]), 0.03, worldZ(ys[zyj]) - 7.5);
+      scene.add(zebra);
+      var zebra2 = new THREE.Mesh(new THREE.PlaneGeometry(6, 10.5), new THREE.MeshLambertMaterial({ map: zebraTex }));
+      zebra2.rotation.x = -Math.PI / 2;
+      zebra2.rotation.z = Math.PI / 2;
+      zebra2.position.set(worldX(xs[zxi]) - 7.5, 0.03, worldZ(ys[zyj]));
+      scene.add(zebra2);
+    }
+  }
+
+  // Street props from the city plan: hydrants, benches, lamps, traffic
+  // lights, bins, planters and road signs along the sidewalks.
+  var propCity = state.city;
+  if (propCity.props) {
+    var hydrantMat = lambert(0xe74c3c);
+    var benchWood = lambert(0x8a6f4d);
+    var poleMat = lambert(0x3a3f44);
+    var lampHeadMat = new THREE.MeshBasicMaterial({ color: 0xffe9a0 });
+    var binMat = lambert(0x2e6b34);
+    for (var pri = 0; pri < propCity.props.length; pri += 1) {
+      var prop = propCity.props[pri];
+      var px = worldX(prop.x);
+      var pz = worldZ(prop.y);
+      if (prop.kind === 'hydrant') {
+        var hyd = new THREE.Group();
+        var hydBody = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.32, 0.8, 8), hydrantMat);
+        hydBody.position.y = 0.4;
+        hyd.add(hydBody);
+        var hydTop = new THREE.Mesh(new THREE.SphereGeometry(0.28, 8, 6), hydrantMat);
+        hydTop.position.y = 0.85;
+        hyd.add(hydTop);
+        var hydCap = box(0.2, 0.2, 0.5, hydrantMat, 0, 0.45, 0);
+        hyd.add(hydCap);
+        hyd.position.set(px, 0, pz);
+        scene.add(hyd);
+      } else if (prop.kind === 'bench') {
+        var bench = new THREE.Group();
+        var seat = box(2.2, 0.12, 0.7, benchWood, 0, 0.55, 0);
+        bench.add(seat);
+        var back = box(2.2, 0.6, 0.1, benchWood, 0, 0.95, -0.32);
+        bench.add(back);
+        var legA = box(0.12, 0.55, 0.6, poleMat, -0.9, 0.28, 0);
+        bench.add(legA);
+        var legB = box(0.12, 0.55, 0.6, poleMat, 0.9, 0.28, 0);
+        bench.add(legB);
+        bench.position.set(px, 0, pz);
+        bench.rotation.y = (pri % 4) * Math.PI / 2;
+        scene.add(bench);
+      } else if (prop.kind === 'lamp') {
+        var lamp = new THREE.Group();
+        var lampPole = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.12, 4.6, 6), poleMat);
+        lampPole.position.y = 2.3;
+        lamp.add(lampPole);
+        var lampArm = box(1.4, 0.1, 0.1, poleMat, 0.6, 4.55, 0);
+        lamp.add(lampArm);
+        var lampHead = box(0.5, 0.16, 0.28, lampHeadMat, 1.25, 4.5, 0);
+        lamp.add(lampHead);
+        lamp.position.set(px, 0, pz);
+        lamp.rotation.y = (pri % 2) * Math.PI;
+        scene.add(lamp);
+      } else if (prop.kind === 'trafficLight') {
+        var tl = new THREE.Group();
+        var tlPole = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.13, 4.2, 6), poleMat);
+        tlPole.position.y = 2.1;
+        tl.add(tlPole);
+        var tlBox = box(0.5, 1.4, 0.4, lambert(0x1a1a1a), 0.5, 3.9, 0);
+        tl.add(tlBox);
+        var tlColors = [0xff2222, 0xffd94d, 0x2ecc71];
+        for (var tli = 0; tli < 3; tli += 1) {
+          var tlLamp = new THREE.Mesh(new THREE.CircleGeometry(0.14, 8), new THREE.MeshBasicMaterial({ color: tlColors[tli] }));
+          tlLamp.position.set(0.5, 4.35 - tli * 0.42, 0.21);
+          tl.add(tlLamp);
+        }
+        tl.position.set(px, 0, pz);
+        scene.add(tl);
+      } else if (prop.kind === 'bin') {
+        var bin = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.3, 0.9, 8), binMat);
+        bin.position.set(px, 0.45, pz);
+        scene.add(bin);
+      } else if (prop.kind === 'planter') {
+        var planter = box(1.4, 0.6, 1.4, lambert(0x9a7b5a), px, 0.3, pz);
+        scene.add(planter);
+        var bush = new THREE.Mesh(new THREE.IcosahedronGeometry(0.75, 0), lambert(0x3f7d3a));
+        bush.position.set(px, 1.0, pz);
+        scene.add(bush);
+      } else if (prop.kind === 'sign') {
+        var signPole = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 2.6, 5), poleMat);
+        signPole.position.set(px, 1.3, pz);
+        scene.add(signPole);
+        var signDisc = new THREE.Mesh(new THREE.CircleGeometry(0.55, 12), new THREE.MeshBasicMaterial({ color: 0x2f6fd0, side: THREE.DoubleSide }));
+        signDisc.position.set(px, 2.8, pz);
+        scene.add(signDisc);
+      }
+    }
+  }
+
   // Beach sand strip on the south edge, ocean beyond it.
   var sand = new THREE.Mesh(new THREE.PlaneGeometry(WORLD.width / SCALE + 40, 18), lambert(PALETTE.sand));
   sand.rotation.x = -Math.PI / 2;
@@ -234,9 +369,9 @@ function createWorld3D(canvas, state) {
   // ---------- buildings, parks, trees, neon ----------
   var facadeCache = {};
   function facadeMat(base, floors) {
-    var key = base + '|' + Math.min(12, floors);
+    var key = base + '|' + Math.min(20, floors);
     if (!facadeCache[key]) {
-      var tex = facadeTexture(base, floors);
+      var tex = facadeTexture(base, floors, texRng);
       facadeCache[key] = new THREE.MeshLambertMaterial({ map: tex, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0 });
     }
     return facadeCache[key];
@@ -244,9 +379,14 @@ function createWorld3D(canvas, state) {
   api.facadeMats = facadeCache;
 
   var city = state.city;
+  var glassMat = new THREE.MeshLambertMaterial({ color: 0x9fd8e8 });
+  var darkGlassMat = new THREE.MeshLambertMaterial({ color: 0x1a2530 });
+  var concreteMat = lambert(0x8a8f96);
   for (var bi = 0; bi < city.buildings.length; bi += 1) {
     var b = city.buildings[bi];
-    var h3 = (b.height / SCALE) * 1.7;
+    // Buildings are extruded TALLER than the city plan says (x2.0): a tower
+    // must tower over a person and over the street, not sit at eye level.
+    var h3 = (b.height / SCALE) * 2.0;
     var bw = b.w / SCALE;
     var bd = b.h / SCALE;
     var cx = worldX(b.x + b.w / 2);
@@ -255,14 +395,120 @@ function createWorld3D(canvas, state) {
     tower.scale.set(bw, h3, bd);
     tower.position.set(cx, h3 / 2, cz);
     scene.add(tower);
-    var roof = box(bw + 0.15, 0.25, bd + 0.15, lambert(new THREE.Color(b.roof).getHex()), cx, h3 + 0.12, cz);
-    scene.add(roof);
-    if (h3 > 9) {
-      var antenna = box(0.12, 2.2, 0.12, lambert(0x888888), cx, h3 + 1.2, cz);
+    // Roofline that reads at a glance: flat slab + parapet, a tall pyramid,
+    // stepped setbacks, a dome, or a spire that stabs the sky — never the
+    // same silhouette twice, and the landmark roofs are BIG on purpose.
+    if (b.roofType === 'sloped') {
+      var pyramid = new THREE.Mesh(new THREE.ConeGeometry(Math.max(bw, bd) * 0.72, 3.6, 4), lambert(new THREE.Color(b.roof).getHex()));
+      pyramid.scale.set(bw / Math.max(bw, bd), 1, bd / Math.max(bw, bd));
+      pyramid.rotation.y = Math.PI / 4;
+      pyramid.position.set(cx, h3 + 1.8, cz);
+      scene.add(pyramid);
+    } else if (b.roofType === 'pyramid') {
+      var tallPyramid = new THREE.Mesh(new THREE.ConeGeometry(Math.max(bw, bd) * 0.72, 6.5, 4), lambert(new THREE.Color(b.roof).getHex()));
+      tallPyramid.scale.set(bw / Math.max(bw, bd), 1, bd / Math.max(bw, bd));
+      tallPyramid.rotation.y = Math.PI / 4;
+      tallPyramid.position.set(cx, h3 + 3.25, cz);
+      scene.add(tallPyramid);
+    } else if (b.roofType === 'dome') {
+      var dome = new THREE.Mesh(new THREE.SphereGeometry(Math.max(bw, bd) * 0.58, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), lambert(new THREE.Color(b.roof).getHex()));
+      dome.scale.set(bw / Math.max(bw, bd), 0.75, bd / Math.max(bw, bd));
+      dome.position.set(cx, h3, cz);
+      scene.add(dome);
+      var domeTip = new THREE.Mesh(new THREE.SphereGeometry(0.5, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffd94d }));
+      domeTip.position.set(cx, h3 + Math.max(bw, bd) * 0.44 + 0.4, cz);
+      scene.add(domeTip);
+    } else if (b.roofType === 'spire') {
+      var spireStep = box(bw * 0.6, 1.4, bd * 0.6, lambert(new THREE.Color(b.roof).getHex()), cx, h3 + 0.7, cz);
+      scene.add(spireStep);
+      var spire = box(0.5, 8.0, 0.5, lambert(0x888888), cx, h3 + 5.4, cz);
+      scene.add(spire);
+      var spireTip = new THREE.Mesh(new THREE.SphereGeometry(0.4, 8, 6), new THREE.MeshBasicMaterial({ color: 0xff4444 }));
+      spireTip.position.set(cx, h3 + 9.6, cz);
+      scene.add(spireTip);
+    } else if (b.roofType === 'stepped') {
+      var step1 = box(bw * 0.72, 1.1, bd * 0.72, lambert(new THREE.Color(b.roof).getHex()), cx, h3 + 0.55, cz);
+      scene.add(step1);
+      var step2 = box(bw * 0.45, 1.0, bd * 0.45, facadeMat(b.facade, Math.max(2, b.floors - 4)), cx, h3 + 1.6, cz);
+      scene.add(step2);
+    } else {
+      var roof = box(bw + 0.15, 0.25, bd + 0.15, lambert(new THREE.Color(b.roof).getHex()), cx, h3 + 0.12, cz);
+      scene.add(roof);
+      // Parapet rim around a flat roof.
+      var parapet = box(bw + 0.1, 0.5, 0.18, concreteMat, cx, h3 + 0.45, cz - bd / 2);
+      scene.add(parapet);
+      var parapet2 = box(bw + 0.1, 0.5, 0.18, concreteMat, cx, h3 + 0.45, cz + bd / 2);
+      scene.add(parapet2);
+    }
+    // Rooftop detail: water tank, AC units, antenna on the tall ones.
+    if (b.waterTank) {
+      var tank = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.9, 1.6, 8), lambert(0x9aa5ad));
+      tank.position.set(cx + bw * 0.25, h3 + 0.9, cz - bd * 0.2);
+      scene.add(tank);
+      var tankTop = new THREE.Mesh(new THREE.ConeGeometry(0.95, 0.6, 8), lambert(0x6e7f88));
+      tankTop.position.set(cx + bw * 0.25, h3 + 2.0, cz - bd * 0.2);
+      scene.add(tankTop);
+    }
+    if (h3 > 6) {
+      var ac = box(0.9, 0.5, 0.7, lambert(0xb8bec4), cx - bw * 0.28, h3 + 0.45, cz + bd * 0.18);
+      scene.add(ac);
+      var ac2 = box(0.7, 0.45, 0.6, lambert(0x9aa5ad), cx + bw * 0.1, h3 + 0.4, cz - bd * 0.25);
+      scene.add(ac2);
+    }
+    if (h3 > 12) {
+      var antenna = box(0.14, 4.6, 0.14, lambert(0x888888), cx, h3 + 2.4, cz);
       scene.add(antenna);
-      var tip = new THREE.Mesh(new THREE.SphereGeometry(0.18, 6, 6), new THREE.MeshBasicMaterial({ color: 0xff4444 }));
-      tip.position.set(cx, h3 + 2.4, cz);
+      var tip = new THREE.Mesh(new THREE.SphereGeometry(0.24, 6, 6), new THREE.MeshBasicMaterial({ color: 0xff4444 }));
+      tip.position.set(cx, h3 + 4.8, cz);
       scene.add(tip);
+    }
+    if (b.helipad) {
+      var pad = new THREE.Mesh(new THREE.CircleGeometry(Math.min(bw, bd) * 0.42, 16), lambert(0x2c3036));
+      pad.rotation.x = -Math.PI / 2;
+      pad.position.set(cx, h3 + 0.26, cz);
+      scene.add(pad);
+    }
+    // Tall towers get a real build, not a bare box: corner pilasters that
+    // run the full height plus a glass lobby entrance with a canopy on the
+    // street face, so the base reads as a building entrance.
+    if (h3 > 7) {
+      var pilasterMat = lambert(0x555b63);
+      var pilOffsets = [[-bw / 2 + 0.15, -bd / 2 + 0.15], [bw / 2 - 0.15, -bd / 2 + 0.15], [-bw / 2 + 0.15, bd / 2 - 0.15], [bw / 2 - 0.15, bd / 2 - 0.15]];
+      for (var pli = 0; pli < 4; pli += 1) {
+        var pil = box(0.3, h3, 0.3, pilasterMat, cx + pilOffsets[pli][0], h3 / 2, cz + pilOffsets[pli][1]);
+        scene.add(pil);
+      }
+      var lobbyGlass = box(bw * 0.4, 2.2, 0.18, glassMat, cx, 1.1, cz + bd / 2 + 0.06);
+      scene.add(lobbyGlass);
+      var lobbyCanopy = box(bw * 0.5, 0.14, 1.6, lambert(new THREE.Color(b.roof).getHex()), cx, 2.5, cz + bd / 2 + 0.8);
+      scene.add(lobbyCanopy);
+    }
+    if (b.balconies) {
+      var balconyFloors = Math.floor(h3 / 3);
+      for (var bf = 1; bf < balconyFloors; bf += 2) {
+        var by3 = bf * 3;
+        if (by3 > h3 - 1.5) break;
+        var balc = box(bw * 0.55, 0.18, 1.0, lambert(0xd8d3c8), cx, by3, cz + bd / 2 + 0.4);
+        scene.add(balc);
+        var rail = box(bw * 0.55, 0.7, 0.08, darkGlassMat, cx, by3 + 0.45, cz + bd / 2 + 0.85);
+        scene.add(rail);
+      }
+    }
+    // Ground-floor storefront on low buildings: glass front, door, striped
+    // awning and a lit shop sign — the base never looks like a plain box.
+    if (b.shop) {
+      var front = cz + bd / 2;
+      var shopGlass = box(bw * 0.86, 1.7, 0.15, glassMat, cx, 0.95, front + 0.06);
+      scene.add(shopGlass);
+      var door = box(1.2, 1.9, 0.18, darkGlassMat, cx - bw * 0.22, 0.95, front + 0.08);
+      scene.add(door);
+      var awning = box(bw * 0.9, 0.12, 1.4, lambert(new THREE.Color(b.shopColor).getHex()), cx, 2.15, front + 0.7);
+      awning.rotation.x = 0.35;
+      scene.add(awning);
+      var shopTex = neonTexture(b.shopName || 'TOKO', b.shopColor);
+      var shopSign = new THREE.Mesh(new THREE.PlaneGeometry(Math.min(9, bw * 0.7), 2.0), new THREE.MeshBasicMaterial({ map: shopTex, transparent: true, side: THREE.DoubleSide }));
+      shopSign.position.set(cx, 3.4, front + 0.25);
+      scene.add(shopSign);
     }
   }
   for (var pi = 0; pi < city.parks.length; pi += 1) {
@@ -294,10 +540,10 @@ function createWorld3D(canvas, state) {
       scene.add(canopy);
     }
   }
-  // Beach umbrellas.
+  // Beach umbrellas, towels and a lifeguard tower.
   var umbrellaColors = [0xff5fa2, 0xffd94d, 0x7fd0ff, 0xff8a5c];
-  for (var ui = 0; ui < 8; ui += 1) {
-    var ux = -160 + ui * 46 + (ui % 2) * 12;
+  for (var ui = 0; ui < 12; ui += 1) {
+    var ux = -170 + ui * 31 + (ui % 2) * 10;
     var uz = worldZ(WORLD.height) - 6;
     var pole = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 2.2, 5), lambert(0xffffff));
     pole.position.set(ux, 1.1, uz);
@@ -305,29 +551,56 @@ function createWorld3D(canvas, state) {
     var umb = new THREE.Mesh(new THREE.ConeGeometry(1.8, 0.9, 8), lambert(umbrellaColors[ui % umbrellaColors.length]));
     umb.position.set(ux, 2.4, uz);
     scene.add(umb);
+    if (ui % 3 === 0) {
+      var towel = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 1.0), lambert(umbrellaColors[(ui + 1) % umbrellaColors.length]));
+      towel.rotation.x = -Math.PI / 2;
+      towel.position.set(ux + 2.6, 0.05, uz + 1.5);
+      scene.add(towel);
+    }
   }
-  // Neon signs on downtown towers.
+  var lgTower = new THREE.Group();
+  var lgLegA = box(0.18, 3.2, 0.18, lambert(0xffffff), -0.8, 1.6, 0);
+  lgTower.add(lgLegA);
+  var lgLegB = box(0.18, 3.2, 0.18, lambert(0xffffff), 0.8, 1.6, 0);
+  lgTower.add(lgLegB);
+  var lgCabin = box(2.4, 1.4, 2.0, lambert(0xff8a5c), 0, 3.6, 0);
+  lgTower.add(lgCabin);
+  var lgRoof = box(2.8, 0.18, 2.4, lambert(0xf2c94c), 0, 4.4, 0);
+  lgTower.add(lgRoof);
+  lgTower.position.set(60, 0, worldZ(WORLD.height) - 8);
+  scene.add(lgTower);
+  // Neon signs on downtown towers — hung high on the tall facades now that
+  // the towers are much taller. Kept compact (12x3) so a sign never spans
+  // past the frame edge and gets cut in half by the screen border.
   for (var si = 0; si < city.signs.length; si += 1) {
     var sign = city.signs[si];
     var tex = neonTexture(sign.text, sign.color);
-    var signMesh = new THREE.Mesh(new THREE.PlaneGeometry(14, 3.5), new THREE.MeshBasicMaterial({ map: tex, transparent: true, side: THREE.DoubleSide }));
-    signMesh.position.set(worldX(sign.x), 11 + (si % 3) * 2, worldZ(sign.y) + 2.2);
+    var signMesh = new THREE.Mesh(new THREE.PlaneGeometry(12, 3), new THREE.MeshBasicMaterial({ map: tex, transparent: true, side: THREE.DoubleSide }));
+    signMesh.position.set(worldX(sign.x), 16 + (si % 3) * 3, worldZ(sign.y) + 2.2);
     scene.add(signMesh);
   }
-  // Marina boats on the east edge.
-  for (var bo = 0; bo < 3; bo += 1) {
+  // Marina boats on the east edge: sailboats and a motorboat, plus wooden piers.
+  var boatColors = [0xecf0f1, 0xffd94d, 0x7fd0ff, 0xff8a5c, 0xffffff];
+  for (var bo = 0; bo < 5; bo += 1) {
     var boat = new THREE.Group();
-    var hull = box(5, 0.8, 1.6, lambert(0xecf0f1), 0, 0.4, 0);
+    var hull = box(5, 0.8, 1.6, lambert(boatColors[bo % boatColors.length]), 0, 0.4, 0);
     boat.add(hull);
-    var mast = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 3.4, 5), lambert(0x8a6f4d));
-    mast.position.set(0, 2.2, 0);
-    boat.add(mast);
-    var sail = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 2.6), new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide }));
-    sail.position.set(0.9, 2.2, 0);
-    boat.add(sail);
-    boat.position.set(worldX(WORLD.width) + 8 + bo * 4, 0, -60 + bo * 55);
+    if (bo === 4) {
+      var motorCabin = box(1.8, 0.9, 1.3, darkGlassMat, 0.4, 1.2, 0);
+      boat.add(motorCabin);
+    } else {
+      var mast = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 3.4, 5), lambert(0x8a6f4d));
+      mast.position.set(0, 2.2, 0);
+      boat.add(mast);
+      var sail = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 2.6), new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide }));
+      sail.position.set(0.9, 2.2, 0);
+      boat.add(sail);
+    }
+    boat.position.set(worldX(WORLD.width) + 8 + (bo % 2) * 5, 0, -100 + bo * 48);
     boat.rotation.y = 0.4 * bo;
     scene.add(boat);
+    var pier = box(1.6, 0.3, 14, lambert(0x8a6f4d), worldX(WORLD.width) + 2, 0.15, -100 + bo * 48);
+    scene.add(pier);
   }
   // Marina water strip on the east edge.
   var marina = new THREE.Mesh(new THREE.PlaneGeometry(26, WORLD.height / SCALE), new THREE.MeshLambertMaterial({ color: PALETTE.waterDeep }));
@@ -356,7 +629,7 @@ function createWorld3D(canvas, state) {
   scene.add(sunBall);
   api.sunBall = sunBall;
   var cloudMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.85 });
-  for (var ci = 0; ci < 9; ci += 1) {
+  for (var ci = 0; ci < 12; ci += 1) {
     var cloud = new THREE.Group();
     for (var cj = 0; cj < 3; cj += 1) {
       var puff = new THREE.Mesh(new THREE.SphereGeometry(3 + cj, 8, 6), cloudMat);
@@ -364,9 +637,27 @@ function createWorld3D(canvas, state) {
       puff.position.set(cj * 4 - 4, cj * 0.4, (cj % 2) * 2);
       cloud.add(puff);
     }
-    cloud.position.set(-180 + ci * 42, 42 + (ci % 3) * 8, -110 + (ci % 4) * 55);
+    cloud.position.set(-180 + ci * 32, 42 + (ci % 3) * 8, -110 + (ci % 4) * 55);
     scene.add(cloud);
     api.clouds.push(cloud);
+  }
+  // Birds: small dark V shapes circling over the beach and marina.
+  api.birds = [];
+  var birdMat = new THREE.MeshBasicMaterial({ color: 0x222222, side: THREE.DoubleSide });
+  for (var birdi = 0; birdi < 7; birdi += 1) {
+    var bird = new THREE.Group();
+    var wingL = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 0.35), birdMat);
+    wingL.position.x = -0.55;
+    bird.add(wingL);
+    var wingR = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 0.35), birdMat);
+    wingR.position.x = 0.55;
+    bird.add(wingR);
+    bird.userData.wingL = wingL;
+    bird.userData.wingR = wingR;
+    bird.userData.phase = birdi * 1.1;
+    bird.position.set(-80 + birdi * 30, 26 + (birdi % 3) * 4, 60 - birdi * 22);
+    scene.add(bird);
+    api.birds.push(bird);
   }
 
   // ---------- mission beacon ----------
@@ -387,85 +678,237 @@ function createWorld3D(canvas, state) {
   api.beacon = beacon;
 
   // ---------- character + car builders ----------
-  function buildPerson(shirtColor, pantsColor, skinColor) {
+  // A person that reads as a person at a glance: round head with hair,
+  // neck, tapered torso, separate cylindrical arms and legs pivoted at the
+  // shoulder and hip so the walk swing is visible, shoes, and per-person
+  // skin, hat and bag variety. Limbs are pivot groups, so placePerson
+  // rotates the group (around the joint) instead of the mesh centre.
+  function limbPivot(mat, radius, len, x, y) {
+    var pivot = new THREE.Group();
+    pivot.position.set(x, y, 0);
+    var cylGeo = new THREE.CylinderGeometry(radius * 0.85, radius, len, 7);
+    var mesh = new THREE.Mesh(cylGeo, mat);
+    mesh.position.y = -len / 2;
+    pivot.add(mesh);
+    pivot.userData.mesh = mesh;
+    return pivot;
+  }
+  function buildPerson(shirtColor, pantsColor, skinColor, opts) {
+    var o = opts || {};
     var g = new THREE.Group();
-    var legL = box(0.26, 0.85, 0.3, lambert(pantsColor), -0.16, 0.43, 0);
-    var legR = box(0.26, 0.85, 0.3, lambert(pantsColor), 0.16, 0.43, 0);
-    legL.geometry = boxGeo;
-    legR.geometry = boxGeo;
-    var torso = box(0.72, 0.85, 0.42, lambert(shirtColor), 0, 1.28, 0);
-    var armL = box(0.2, 0.75, 0.24, lambert(shirtColor), -0.48, 1.3, 0);
-    var armR = box(0.2, 0.75, 0.24, lambert(shirtColor), 0.48, 1.3, 0);
-    var head = box(0.42, 0.42, 0.4, lambert(skinColor), 0, 1.95, 0);
-    var hair = box(0.46, 0.16, 0.44, lambert(0x2c2018), 0, 2.2, 0);
-    var gun = box(0.5, 0.1, 0.12, lambert(0x222222), 0.48, 0.95, 0.18);
+    var shirtMat = lambert(shirtColor);
+    var pantsMat = lambert(pantsColor);
+    var skinMat = lambert(skinColor);
+    var shoeMat = lambert(0x1a1a1a);
+    var hairMat = lambert(o.hair || 0x2c2018);
+    // Legs pivoted at the hip (y 0.85), with a shoe box at the foot.
+    // Limbs are deliberately chunky (thick legs/arms, big round head) so a
+    // person reads as a human at street distance, not a stick figure.
+    var legL = limbPivot(pantsMat, 0.15, 0.85, -0.17, 0.85);
+    var shoeL = box(0.26, 0.12, 0.44, shoeMat, 0, -0.85, 0.06);
+    legL.add(shoeL);
+    var legR = limbPivot(pantsMat, 0.15, 0.85, 0.17, 0.85);
+    var shoeR = box(0.26, 0.12, 0.44, shoeMat, 0, -0.85, 0.06);
+    legR.add(shoeR);
+    // Torso: tapered cylinder (shoulders wider than waist) + belt.
+    var torsoGeo = new THREE.CylinderGeometry(0.38, 0.30, 0.85, 8);
+    var torso = new THREE.Mesh(torsoGeo, shirtMat);
+    torso.scale.z = 0.62;
+    torso.position.y = 1.28;
+    g.add(torso);
+    var belt = box(0.6, 0.09, 0.38, lambert(0x222222), 0, 0.88, 0);
+    g.add(belt);
+    // Arms pivoted at the shoulder (y 1.62), skin hand at the end.
+    var armL = limbPivot(shirtMat, 0.12, 0.72, -0.48, 1.62);
+    var handL = new THREE.Mesh(new THREE.SphereGeometry(0.12, 6, 6), skinMat);
+    handL.position.y = -0.74;
+    armL.add(handL);
+    var armR = limbPivot(shirtMat, 0.12, 0.72, 0.48, 1.62);
+    var handR = new THREE.Mesh(new THREE.SphereGeometry(0.12, 6, 6), skinMat);
+    handR.position.y = -0.74;
+    armR.add(handR);
+    // Neck + BIG round head + hair cap.
+    var neck = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.12, 0.18, 6), skinMat);
+    neck.position.y = 1.78;
+    g.add(neck);
+    var head = new THREE.Mesh(new THREE.SphereGeometry(0.33, 12, 10), skinMat);
+    head.position.y = 2.05;
+    g.add(head);
+    var hair = new THREE.Mesh(new THREE.SphereGeometry(0.34, 12, 10, 0, Math.PI * 2, 0, Math.PI * 0.55), hairMat);
+    hair.position.y = 2.09;
+    hair.scale.set(1, 0.9, 1);
+    g.add(hair);
+    // Eyes on the front of the head (+z is the face: cap brim and gun are
+    // also +z) — two dark dots are the cheapest way a figure reads as a
+    // person instead of a mannequin.
+    var eyeMat = lambert(0x1a1a1a);
+    var eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 6), eyeMat);
+    eyeL.position.set(-0.12, 2.08, 0.3);
+    g.add(eyeL);
+    var eyeR = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 6), eyeMat);
+    eyeR.position.set(0.12, 2.08, 0.3);
+    g.add(eyeR);
+    // Hat variety: cap (crown + brim), helmet (dome), beanie (band).
+    if (o.hat === 'cap') {
+      var capMat = lambert(o.hatColor || 0xe74c3c);
+      var cap = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.29, 0.16, 8), capMat);
+      cap.position.y = 2.24;
+      g.add(cap);
+      var brim = box(0.3, 0.05, 0.34, capMat, 0, 2.18, 0.3);
+      g.add(brim);
+    } else if (o.hat === 'helmet') {
+      var helmet = new THREE.Mesh(new THREE.SphereGeometry(0.32, 10, 8, 0, Math.PI * 2, 0, Math.PI * 0.55), lambert(o.hatColor || 0xf1c40f));
+      helmet.position.y = 2.05;
+      g.add(helmet);
+    } else if (o.hat === 'beanie') {
+      var beanie = new THREE.Mesh(new THREE.CylinderGeometry(0.27, 0.29, 0.2, 8), lambert(o.hatColor || 0x2e86c1));
+      beanie.position.y = 2.22;
+      g.add(beanie);
+    }
+    // Backpack for some pedestrians.
+    if (o.bag) {
+      var bag = box(0.34, 0.45, 0.18, lambert(o.bagColor || 0x8e44ad), 0, 1.3, -0.3);
+      g.add(bag);
+    }
+    // A gun only for armed people (cops, hostiles) — never on civilians.
+    if (o.gun) {
+      var gun = box(0.5, 0.1, 0.12, lambert(0x222222), 0.46, 0.95, 0.18);
+      g.add(gun);
+    }
     g.add(legL);
     g.add(legR);
-    g.add(torso);
     g.add(armL);
     g.add(armR);
-    g.add(head);
-    g.add(hair);
-    g.add(gun);
     g.userData.legL = legL;
     g.userData.legR = legR;
     g.userData.armL = armL;
     g.userData.armR = armR;
-    legL.position.y = 0.43;
-    legR.position.y = 0.43;
+    if (o.scale) g.scale.setScalar(o.scale);
     blobShadow(g, 0.7);
     return g;
   }
   api.buildPerson = buildPerson;
 
+  // A car that reads as a car, and a different car per kind: glass cabin
+  // with windshield, round headlights, grille, bumpers, mirrors, wheels
+  // with hubcaps, and a distinct silhouette per kind (low sport with
+  // spoiler, tall van, boxy truck with cargo, taxi with checkers).
   function buildCarMesh(car) {
     var g = new THREE.Group();
     var color = new THREE.Color(car.color).getHex();
     var isPolice = car.kind === 'police';
     var isSport = car.kind === 'sport';
-    var isTruck = car.kind === 'truck' || car.kind === 'van';
-    var bodyH = isSport ? 0.55 : isTruck ? 0.9 : 0.7;
-    var bodyL = isTruck ? 5.2 : 4.6;
-    var body = box(bodyL, bodyH, 2.0, new THREE.MeshLambertMaterial({ color: color }), 0, 0.55, 0);
+    var isTruck = car.kind === 'truck';
+    var isVan = car.kind === 'van';
+    var bodyH = isSport ? 0.5 : isTruck ? 0.85 : isVan ? 0.95 : 0.65;
+    var bodyL = isTruck ? 5.4 : isVan ? 5.0 : 4.6;
+    var bodyMat = new THREE.MeshLambertMaterial({ color: color });
+    var glassMat = new THREE.MeshLambertMaterial({ color: 0x2a4a66 });
+    var chromeMat = lambert(0xc8ccd0);
+    var body = box(bodyL, bodyH, 2.0, bodyMat, 0, 0.55, 0);
     g.add(body);
-    var cabinColor = isPolice ? 0xffffff : 0x1a2530;
-    var cabin = box(isTruck ? 2.4 : 2.3, isTruck ? 0.9 : 0.55, 1.7, new THREE.MeshLambertMaterial({ color: cabinColor }), isTruck ? 0.9 : -0.3, bodyH + 0.28, 0);
-    g.add(cabin);
+    // Hood + trunk deck at slightly different heights so the body is not
+    // one flat slab.
+    var hood = box(1.1, 0.16, 1.9, bodyMat, bodyL / 2 - 0.55, 0.55 + bodyH / 2 + 0.05, 0);
+    g.add(hood);
+    var trunkDeck = box(0.9, 0.14, 1.9, bodyMat, -bodyL / 2 + 0.45, 0.55 + bodyH / 2 + 0.04, 0);
+    g.add(trunkDeck);
+    // Cabin: glasshouse with a slanted windshield plane and a roof.
+    if (isTruck) {
+      var cab = box(1.5, 1.1, 1.9, bodyMat, bodyL / 2 - 0.8, 1.35, 0);
+      g.add(cab);
+      var cabGlass = box(0.2, 0.7, 1.7, glassMat, bodyL / 2 - 0.05, 1.4, 0);
+      g.add(cabGlass);
+      var cargo = box(3.2, 1.7, 2.05, lambert(0xd8dce0), -1.0, 1.35, 0);
+      g.add(cargo);
+      var cargoRib = box(3.2, 0.12, 2.08, lambert(0x9aa5ad), -1.0, 1.9, 0);
+      g.add(cargoRib);
+    } else if (isVan) {
+      var vanBody = box(bodyL * 0.72, 1.5, 1.95, bodyMat, -0.3, 1.25, 0);
+      g.add(vanBody);
+      var vanGlass = box(bodyL * 0.5, 0.55, 1.98, glassMat, -0.6, 1.55, 0);
+      g.add(vanGlass);
+      var vanShield = box(0.15, 0.7, 1.8, glassMat, bodyL / 2 - 0.45, 1.35, 0);
+      vanShield.rotation.z = 0.35;
+      g.add(vanShield);
+    } else {
+      var cabin = box(2.3, 0.55, 1.7, glassMat, -0.3, bodyH + 0.28, 0);
+      g.add(cabin);
+      var roofPanel = box(2.0, 0.1, 1.6, bodyMat, -0.3, bodyH + 0.6, 0);
+      g.add(roofPanel);
+      var windshield = box(0.12, 0.62, 1.65, glassMat, 0.88, bodyH + 0.28, 0);
+      windshield.rotation.z = -0.5;
+      g.add(windshield);
+      var rearGlass = box(0.12, 0.55, 1.65, glassMat, -1.48, bodyH + 0.26, 0);
+      rearGlass.rotation.z = 0.45;
+      g.add(rearGlass);
+    }
     if (isPolice) {
       var stripe = box(bodyL * 0.9, 0.12, 2.02, lambert(0xffffff), 0, 0.62, 0);
       g.add(stripe);
-      var barR = box(0.5, 0.16, 0.5, new THREE.MeshBasicMaterial({ color: 0xff2222 }), -0.3, bodyH + 0.62, 0);
-      var barB = box(0.5, 0.16, 0.5, new THREE.MeshBasicMaterial({ color: 0x2244ff }), 0.3, bodyH + 0.62, 0);
+      var barR = box(0.5, 0.16, 0.5, new THREE.MeshBasicMaterial({ color: 0xff2222 }), -0.3, bodyH + 0.72, 0);
+      var barB = box(0.5, 0.16, 0.5, new THREE.MeshBasicMaterial({ color: 0x2244ff }), 0.3, bodyH + 0.72, 0);
       g.add(barR);
       g.add(barB);
       g.userData.barR = barR;
       g.userData.barB = barB;
     }
     if (car.kind === 'taxi') {
-      var sign = box(0.7, 0.25, 0.5, new THREE.MeshBasicMaterial({ color: 0xffd94d }), -0.3, bodyH + 0.68, 0);
+      var sign = box(0.7, 0.25, 0.5, new THREE.MeshBasicMaterial({ color: 0xffd94d }), -0.3, bodyH + 0.78, 0);
       g.add(sign);
+      var checker = box(bodyL * 0.8, 0.18, 2.02, lambert(0x222222), 0, 0.72, 0);
+      g.add(checker);
     }
     if (isSport) {
-      var spoiler = box(0.18, 0.08, 1.9, lambert(0x222222), -2.2, 1.0, 0);
+      var spoiler = box(0.18, 0.08, 1.9, lambert(0x222222), -2.2, 1.05, 0);
       g.add(spoiler);
+      var spoilerL = box(0.12, 0.35, 0.12, lambert(0x222222), -2.2, 0.85, 0.8);
+      g.add(spoilerL);
+      var spoilerR = box(0.12, 0.35, 0.12, lambert(0x222222), -2.2, 0.85, -0.8);
+      g.add(spoilerR);
+      var scoop = box(0.7, 0.12, 0.6, lambert(0x222222), 1.4, 0.95, 0);
+      g.add(scoop);
     }
+    // Bumpers, grille, mirrors.
+    var bumperF = box(0.22, 0.22, 2.0, chromeMat, bodyL / 2 + 0.05, 0.38, 0);
+    g.add(bumperF);
+    var bumperR = box(0.22, 0.22, 2.0, chromeMat, -bodyL / 2 - 0.05, 0.38, 0);
+    g.add(bumperR);
+    var grille = box(0.1, 0.22, 1.1, lambert(0x222222), bodyL / 2 + 0.06, 0.6, 0);
+    g.add(grille);
+    var mirrorL = box(0.18, 0.12, 0.12, lambert(0x222222), 0.85, bodyH + 0.35, 1.0);
+    g.add(mirrorL);
+    var mirrorR = box(0.18, 0.12, 0.12, lambert(0x222222), 0.85, bodyH + 0.35, -1.0);
+    g.add(mirrorR);
+    // Wheels with hubcaps.
     var wheelPositions = [[1.5, 0.95], [1.5, -0.95], [-1.5, 0.95], [-1.5, -0.95]];
     var wheels = [];
+    var hubGeo = new THREE.CylinderGeometry(0.2, 0.2, 0.32, 8);
+    hubGeo.rotateX(Math.PI / 2);
     for (var wi = 0; wi < 4; wi += 1) {
+      var wheelGroup = new THREE.Group();
       var wheel = new THREE.Mesh(wheelGeo, lambert(0x1a1a1a));
-      wheel.position.set(wheelPositions[wi][0], 0.42, wheelPositions[wi][1]);
-      g.add(wheel);
-      wheels.push(wheel);
+      wheelGroup.add(wheel);
+      var hub = new THREE.Mesh(hubGeo, chromeMat);
+      wheelGroup.add(hub);
+      wheelGroup.position.set(wheelPositions[wi][0], 0.42, wheelPositions[wi][1]);
+      g.add(wheelGroup);
+      wheels.push(wheelGroup);
     }
     g.userData.wheels = wheels;
+    // Round headlights + taillights.
     var headMat = new THREE.MeshBasicMaterial({ color: 0xfff6c0 });
-    var headL = box(0.12, 0.18, 0.3, headMat, bodyL / 2 + 0.02, 0.6, 0.6);
-    var headR = box(0.12, 0.18, 0.3, headMat, bodyL / 2 + 0.02, 0.6, -0.6);
+    var headGeo = new THREE.CylinderGeometry(0.16, 0.16, 0.1, 8);
+    headGeo.rotateZ(Math.PI / 2);
+    var headL = new THREE.Mesh(headGeo, headMat);
+    headL.position.set(bodyL / 2 + 0.06, 0.62, 0.62);
     g.add(headL);
+    var headR = new THREE.Mesh(headGeo, headMat);
+    headR.position.set(bodyL / 2 + 0.06, 0.62, -0.62);
     g.add(headR);
     var tailMat = new THREE.MeshBasicMaterial({ color: 0xff2222 });
-    var tailL = box(0.12, 0.16, 0.3, tailMat, -bodyL / 2 - 0.02, 0.6, 0.6);
-    var tailR = box(0.12, 0.16, 0.3, tailMat, -bodyL / 2 - 0.02, 0.6, -0.6);
+    var tailL = box(0.1, 0.16, 0.34, tailMat, -bodyL / 2 - 0.03, 0.62, 0.62);
+    var tailR = box(0.1, 0.16, 0.34, tailMat, -bodyL / 2 - 0.03, 0.62, -0.62);
     g.add(tailL);
     g.add(tailR);
     g.userData.tailMat = tailMat;
@@ -616,12 +1059,17 @@ function placePerson(mesh, obj) {
 }
 
 function updateWorld3D(api, state, dt) {
-  api.time += dt;
+  // A frozen (staged screenshot) scene must render the same frame no matter
+  // how many frames the machine renders before the capture: time and all
+  // ambient motion stay put, so the same command writes the same bytes.
+  if (!state.frozen) api.time += dt;
   var darkness = updateLighting(api, state);
 
   // Player.
+  // Player: Rico is BIG in frame now (scale 1.45) — a street-level hero,
+  // not a speck on the asphalt. His yellow shirt + red cap stay the anchor.
   if (!api.playerMesh) {
-    api.playerMesh = api.buildPerson(0xf2c94c, 0x2c3e50, 0xe8b98a);
+    api.playerMesh = api.buildPerson(0xf2c94c, 0x2c3e50, 0xe8b98a, { hair: 0x111111, hat: 'cap', hatColor: 0xe74c3c, scale: 1.45 });
     api.scene.add(api.playerMesh);
   }
   var player = state.player;
@@ -639,7 +1087,7 @@ function updateWorld3D(api, state, dt) {
     mesh.rotation.y = -car.angle;
     mesh.rotation.z = car.smoking ? Math.sin(api.time * 9) * 0.02 : 0;
     var wheels = mesh.userData.wheels || [];
-    for (var i = 0; i < wheels.length; i += 1) wheels[i].rotation.x = car.wheelSpin || 0;
+    for (var i = 0; i < wheels.length; i += 1) wheels[i].rotation.z = car.wheelSpin || 0;
     if (mesh.userData.barR && mesh.userData.barB) {
       var flash = Math.sin(api.time * 10) > 0;
       mesh.userData.barR.material.color.setHex(flash ? 0xff2222 : 0x550000);
@@ -649,12 +1097,13 @@ function updateWorld3D(api, state, dt) {
     if (mesh.userData.coneMat) mesh.userData.coneMat.opacity = darkness > 0.1 ? 0.14 : 0;
   });
 
-  // Pedestrians and foot cops.
+  // Pedestrians and foot cops — every person is scaled x1.4 on top of their
+  // own heightScale, so crowds read as people, not dots, from the street.
   syncActor(api, api.pedMeshes, state.peds, function (ped) {
-    return api.buildPerson(new THREE.Color(ped.color).getHex(), 0x2c2c34, 0xe8b98a);
+    return api.buildPerson(new THREE.Color(ped.color).getHex(), new THREE.Color(ped.pants || '#2c2c34').getHex(), new THREE.Color(ped.skin || '#e8b98a').getHex(), { hair: ped.hair, hat: ped.hat, hatColor: ped.hatColor, bag: ped.bag, bagColor: ped.bagColor, scale: (ped.heightScale || 1) * 1.4, gun: ped.hostile });
   }, placePerson);
   syncActor(api, api.copMeshes, state.cops, function () {
-    return api.buildPerson(0x2f6fd0, 0x1a2530, 0xe8b98a);
+    return api.buildPerson(0x2f6fd0, 0x1a2530, 0xe8b98a, { hat: 'cap', hatColor: 0x1a2530, gun: true, scale: 1.4 });
   }, placePerson);
 
   // Helicopter.
@@ -741,13 +1190,28 @@ function updateWorld3D(api, state, dt) {
     }
   }
 
-  // Clouds drift, ocean foam slides.
-  for (var ci = 0; ci < api.clouds.length; ci += 1) {
-    api.clouds[ci].position.x += dt * 1.2;
-    if (api.clouds[ci].position.x > 240) api.clouds[ci].position.x = -240;
-  }
-  for (var fi = 0; fi < api.foam.length; fi += 1) {
-    api.foam[fi].position.z = worldZ(WORLD.height) + 4 + fi * 5 + Math.sin(api.time * 0.7 + fi * 2) * 1.2;
+  // Clouds drift, birds circle and flap, ocean foam slides — only while
+  // the world runs; a frozen staged scene keeps them still (determinism).
+  if (!state.frozen) {
+    for (var ci = 0; ci < api.clouds.length; ci += 1) {
+      api.clouds[ci].position.x += dt * 1.2;
+      if (api.clouds[ci].position.x > 240) api.clouds[ci].position.x = -240;
+    }
+    if (api.birds) {
+      for (var birdi = 0; birdi < api.birds.length; birdi += 1) {
+        var bird = api.birds[birdi];
+        var bt = api.time * 0.25 + bird.userData.phase;
+        bird.position.x = Math.cos(bt) * 90 + (birdi - 3) * 18;
+        bird.position.z = 60 + Math.sin(bt) * 70 - birdi * 12;
+        bird.rotation.y = -bt;
+        var flap = Math.sin(api.time * 9 + bird.userData.phase * 3) * 0.55;
+        bird.userData.wingL.rotation.z = flap;
+        bird.userData.wingR.rotation.z = -flap;
+      }
+    }
+    for (var fi = 0; fi < api.foam.length; fi += 1) {
+      api.foam[fi].position.z = worldZ(WORLD.height) + 4 + fi * 5 + Math.sin(api.time * 0.7 + fi * 2) * 1.2;
+    }
   }
 
   updateCamera3D(api, state, dt);
@@ -762,25 +1226,30 @@ function updateCamera3D(api, state, dt) {
     api.camera.aspect = aspect;
     api.camera.updateProjectionMatrix();
   }
+  // STREET-LEVEL third-person camera: low and close behind Rico (or the
+  // car), looking slightly UP so people are big in frame and towers loom
+  // over the street — the old high/down camera is what made everything
+  // look like toy boxes on a road. lookY is above eye level on purpose.
   var target = state.playerCar || state.player;
   var tx = worldX(target.x);
   var tz = worldZ(target.y);
   var driving = !!state.playerCar;
-  var dist = driving ? 13.5 : 9.5;
-  var height = driving ? 5.2 : 4.4;
-  var lookY = 1.3;
+  var dist = driving ? 9.0 : 6.2;
+  var height = driving ? 3.1 : 2.5;
+  var lookY = driving ? 1.9 : 2.0;
   if (api.shotCam) {
     dist = api.shotCam.dist;
     height = api.shotCam.height;
-    lookY = api.shotCam.lookY || 1.3;
+    lookY = api.shotCam.lookY || 1.9;
   }
   if (state.screen === 'title') {
-    // Slow cinematic orbit over downtown for the title screen.
-    var orbit = api.time * 0.07;
-    var ox = Math.cos(orbit) * 55;
-    var oz = Math.sin(orbit) * 42;
-    api.camPos.lerp(new THREE.Vector3(ox, 34, oz), Math.min(1, dt * 1.2));
-    api.lookAt.lerp(new THREE.Vector3(0, 2, 0), Math.min(1, dt * 1.2));
+    // Title backdrop: a slow drift DOWN the downtown boulevard at street
+    // level (camera stays on the road centreline, x = -24 is road 1680),
+    // looking north up the canyon of towers — never a top-down map view,
+    // and never inside a building the way a free orbit would be.
+    var driftZ = 60 + Math.sin(api.time * 0.05) * 10;
+    api.camPos.lerp(new THREE.Vector3(-24, 7, driftZ), Math.min(1, dt * 1.2));
+    api.lookAt.lerp(new THREE.Vector3(-24, 11, -60), Math.min(1, dt * 1.2));
   } else {
     var yaw = state.camYaw;
     var fx = Math.cos(yaw);
@@ -789,7 +1258,7 @@ function updateCamera3D(api, state, dt) {
     // Keep the camera inside the world.
     desired.x = clamp(desired.x, -190, 190);
     desired.z = clamp(desired.z, -150, 175);
-    desired.y = Math.max(2.2, desired.y);
+    desired.y = Math.max(1.9, desired.y);
     var k = Math.min(1, dt * (driving ? 4.5 : 6));
     api.camPos.lerp(desired, k);
     api.lookAt.lerp(new THREE.Vector3(tx + fx * 4, lookY, tz + fz * 4), Math.min(1, dt * 7));
