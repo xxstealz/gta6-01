@@ -129,6 +129,11 @@ function spawnCashPickups(state) {
   state.pickups.push({ x: 480, y: 600, kind: 'health', amount: 40, bob: 0 });
   state.pickups.push({ x: 1920, y: 1560, kind: 'ammo', amount: 24, bob: 0 });
   state.pickups.push({ x: 3360, y: 600, kind: 'health', amount: 40, bob: 0 });
+  // Senjata di jalan: shotgun di persimpangan barat, rifle di persimpangan
+  // tengah — keduanya di atas jalan (bukan di dalam gedung) supaya gampang
+  // diambil dan kelihatan dari mobil.
+  state.pickups.push({ x: 2160, y: 720, kind: 'weapon', weapon: 'shotgun', bob: 0 });
+  state.pickups.push({ x: 1680, y: 1200, kind: 'weapon', weapon: 'rifle', bob: 0 });
 }
 
 function updatePickups(state, dt) {
@@ -144,6 +149,8 @@ function updatePickups(state, dt) {
       } else if (pickup.kind === 'ammo') {
         state.player.ammo += pickup.amount;
         state.message = 'Amunisi +' + pickup.amount;
+      } else if (pickup.kind === 'weapon') {
+        giveWeapon(state, pickup.weapon);
       }
       state.messageTimer = 2;
       state.audio.pickup();

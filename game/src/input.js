@@ -13,6 +13,9 @@ var ACTION = {
   punch: 'punch',
   pause: 'pause',
   mute: 'mute',
+  weapon1: 'weapon1',
+  weapon2: 'weapon2',
+  weapon3: 'weapon3',
 };
 
 var KEY_MAP = {
@@ -32,6 +35,9 @@ var KEY_MAP = {
   KeyP: 'pause',
   Escape: 'pause',
   KeyM: 'mute',
+  Digit1: 'weapon1',
+  Digit2: 'weapon2',
+  Digit3: 'weapon3',
 };
 
 function createInput() {

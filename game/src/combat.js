@@ -43,9 +43,44 @@ function tryEnterCar(state) {
   state.audio.pickup();
 }
 
+// Ganti senjata (tombol 1/2/3): hanya ke senjata yang sudah dimiliki
+// (stok amunisi > 0 atau sedang dipakai). Amunisi senjata lama disimpan.
+function switchWeapon(state, name) {
+  var player = state.player;
+  if (!WEAPONS[name] || player.weapon === name) return false;
+  if ((player.ammoStock[name] || 0) <= 0) return false;
+  player.ammoStock[player.weapon] = player.ammo;
+  player.weapon = name;
+  player.ammo = player.ammoStock[name];
+  player.fireTimer = 0;
+  state.message = WEAPONS[name].icon + ' ' + WEAPONS[name].name + ' dipakai — ' + player.ammo + ' peluru.';
+  state.messageTimer = 2;
+  return true;
+}
+
+// Ambil senjata baru dari pickup: tambah amunisi dan langsung pakai.
+function giveWeapon(state, name) {
+  var player = state.player;
+  var def = WEAPONS[name];
+  if (!def) return;
+  player.ammoStock[name] = (player.ammoStock[name] || 0) + def.startAmmo;
+  player.ammoStock[player.weapon] = player.ammo;
+  player.weapon = name;
+  player.ammo = player.ammoStock[name];
+  player.fireTimer = 0;
+  state.message = def.icon + ' ' + def.name + ' didapat! ' + def.startAmmo + ' peluru — tekan 1/2/3 untuk ganti senjata.';
+  state.messageTimer = 3;
+  state.audio.pickup();
+}
+
 function updatePlayerCombat(state, input, dt) {
   var player = state.player;
   player.punchTimer = Math.max(0, (player.punchTimer || 0) - dt);
+  player.fireTimer = Math.max(0, (player.fireTimer || 0) - dt);
+  // Ganti senjata boleh kapan saja (jalan kaki maupun mengemudi).
+  if (input.consume('weapon1')) switchWeapon(state, 'pistol');
+  if (input.consume('weapon2')) switchWeapon(state, 'shotgun');
+  if (input.consume('weapon3')) switchWeapon(state, 'rifle');
   if (state.playerCar) return;
   if (input.consume('punch') && player.punchTimer <= 0) {
     player.punchTimer = PLAYER.punchCooldown;
@@ -64,15 +99,21 @@ function updatePlayerCombat(state, input, dt) {
       }
     }
   }
-  if (input.mouse.clicked && player.ammo > 0) {
+  if (input.mouse.clicked && player.fireTimer <= 0) {
     // Consume the click at once: a slow frame can run several fixed steps,
-    // and one click must fire exactly one bullet.
+    // and one click must fire exactly one shot (one trigger pull).
     input.mouse.clicked = false;
+    var def = WEAPONS[player.weapon || 'pistol'] || WEAPONS.pistol;
+    if (player.ammo <= 0) return;
     // Aim where the camera looks: the crosshair in the middle of the screen.
     var angle = state.camYaw + Math.PI / 2;
     player.angle = angle;
     player.ammo -= 1;
-    fireBullet(state, player.x, player.y, angle, 'player');
+    player.fireTimer = def.cooldown;
+    for (var s = 0; s < def.pellets; s += 1) {
+      var spread = (state.rng() - 0.5) * 2 * def.spread;
+      fireBullet(state, player.x, player.y, angle + spread, 'player', { damage: def.damage, damageCar: def.damageCar, speed: def.bulletSpeed });
+    }
     // Muzzle flash at the gun's tip.
     spawnSparks(state, player.x + Math.cos(angle) * 26, player.y + Math.sin(angle) * 26, 8);
     state.audio.shot();

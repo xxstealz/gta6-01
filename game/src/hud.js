@@ -37,7 +37,12 @@ function updateHud(hud, state) {
   hud.stars.textContent = starsText(player.wanted);
   hud.stars.style.color = player.wanted > 0 ? '#ffd94d' : 'rgba(255,255,255,0.35)';
   hud.clock.textContent = timePhase(state.clockMinutes).label + ' ' + formatClock(state.clockMinutes);
-  hud.ammo.textContent = state.playerCar ? '🚗' : '🔫 ' + player.ammo;
+  if (state.playerCar) {
+    hud.ammo.textContent = '🚗';
+  } else {
+    var weapon = WEAPONS[player.weapon || 'pistol'] || WEAPONS.pistol;
+    hud.ammo.textContent = weapon.icon + ' ' + weapon.name + ' ' + player.ammo;
+  }
   var speed = state.playerCar ? Math.abs(Math.round(state.playerCar.speed * 0.18)) : 0;
   hud.speed.textContent = state.playerCar ? speed + ' km/h' : '';
   var mission = currentMission(state);
@@ -58,8 +63,8 @@ function updateHud(hud, state) {
     hud.message.style.opacity = '0';
   }
   hud.hint.textContent = state.playerCar
-    ? 'WASD mengemudi • Spasi rem tangan • E keluar mobil • Drag mouse kamera • M suara • P jeda'
-    : 'WASD jalan • Shift lari • E masuk mobil • F pukul • Klik tembak • Drag mouse kamera • M suara • P jeda';
+    ? 'WASD mengemudi • Spasi rem tangan • E keluar mobil • 1/2/3 ganti senjata • Drag mouse kamera • M suara • P jeda'
+    : 'WASD jalan • Shift lari • E masuk mobil • F pukul • Klik tembak • 1/2/3 ganti senjata • Drag mouse kamera • M suara • P jeda';
 }
 
 function showOverlay(hud, state, onStart, onContinue, onRestart) {
@@ -73,7 +78,7 @@ function showOverlay(hud, state, onStart, onContinue, onRestart) {
       '<b>Rico Solano</b> pulang ke Solmar Bay dengan utang dan satu rencana: lima pekerjaan, ' +
       'satu pelarian terakhir. Jelajahi kota jalan kaki atau naik mobil, curi mobil, kabur dari polisi, ' +
       'dan selesaikan semua misi.<br><br>' +
-      'WASD bergerak • E masuk/keluar mobil • F pukul • Klik mouse menembak • Drag mouse putar kamera • Spasi rem tangan • P jeda';
+      'WASD bergerak • E masuk/keluar mobil • F pukul • Klik mouse menembak • 1/2/3 ganti senjata • Drag mouse putar kamera • Spasi rem tangan • P jeda';
     addButton(hud, '▶  MULAI PETUALANGAN', onStart);
     if (state.hasSave) addButton(hud, '↻  LANJUTKAN (SAVE)', onContinue);
   } else if (state.screen === 'paused') {

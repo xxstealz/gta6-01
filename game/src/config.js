@@ -46,6 +46,16 @@ var WANTED = {
   killCop: 2,
 };
 
+// Senjata: pistol bawaan + shotgun dan rifle sebagai pickup di kota.
+// damage = per peluru ke orang, damageCar = per peluru ke mobil,
+// pellets = jumlah peluru per tembakan, spread = sebaran (radian),
+// cooldown = jeda minimum antar tembakan (detik).
+var WEAPONS = {
+  pistol: { name: 'PISTOL', icon: '🔫', damage: 25, damageCar: 20, pellets: 1, spread: 0, bulletSpeed: 720, cooldown: 0.25, startAmmo: 48 },
+  shotgun: { name: 'SHOTGUN', icon: '💥', damage: 14, damageCar: 12, pellets: 5, spread: 0.16, bulletSpeed: 640, cooldown: 0.7, startAmmo: 12 },
+  rifle: { name: 'RIFLE', icon: '🎯', damage: 40, damageCar: 30, pellets: 1, spread: 0.02, bulletSpeed: 980, cooldown: 0.16, startAmmo: 30 },
+};
+
 var PALETTE = {
   skyDay: 0x87c5e8,
   skyDusk: 0xff9e5e,

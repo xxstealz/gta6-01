@@ -104,7 +104,7 @@ function stageShot(name, state) {
         hat: [null, 'cap', null, 'helmet', 'beanie'][ns],
         hatColor: ['#e74c3c', '#f1c40f', '#2e86c1', '#ffffff', '#27ae60'][ns],
         bag: ns % 2 === 0, bagColor: '#8e44ad',
-        heightScale: 1.2 + ns * 0.05,
+        heightScale: 0.95 + ns * 0.03,
         targetX: 720, targetY: 480, fleeing: false, hostile: false,
         shootTimer: 0, health: 30, walkPhase: ns * 1.3,
       });
@@ -156,7 +156,7 @@ function stageShot(name, state) {
         hat: [null, 'cap', 'helmet', null, 'beanie'][cs],
         hatColor: ['#e74c3c', '#f1c40f', '#2e86c1', '#ffffff', '#27ae60'][cs],
         bag: cs % 2 === 0, bagColor: '#8e44ad',
-        heightScale: 1.2 + cs * 0.05,
+        heightScale: 0.95 + cs * 0.03,
         targetX: citySpots[cs][0], targetY: citySpots[cs][1] - 200, fleeing: false, hostile: false,
         shootTimer: 0, health: 30, walkPhase: cs * 1.3,
       });

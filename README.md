@@ -10,12 +10,12 @@ Rico Solano pulang ke Solmar Bay dengan utang dan satu rencana: lima pekerjaan, 
 
 Buka `game/index.html` lewat server statis apa pun (mis. `node serve.ts` lalu http://localhost:8080). Tanpa network, tanpa build step. Three.js r128 di-vendor lokal di `game/vendor/three.min.js`.
 
-- **WASD** bergerak / mengemudi (relatif kamera), **Shift** lari, **E** masuk/keluar mobil, **F** pukul, **klik mouse** menembak (crosshair tengah), **drag mouse** memutar kamera, **Spasi** rem tangan, **P** jeda, **M** suara.
+- **WASD** bergerak / mengemudi (relatif kamera), **Shift** lari, **E** masuk/keluar mobil, **F** pukul, **klik mouse** menembak (crosshair tengah), **1/2/3** ganti senjata (pistol, shotgun, rifle — shotgun dan rifle bisa diambil sebagai pickup di jalan), **drag mouse** memutar kamera, **Spasi** rem tangan, **P** jeda, **M** suara.
 - Kota Solmar Bay 3D: jalan, blok bangunan bertingkat dengan fasad prosedural, taman, pantai + laut, marina dengan perahu, hotel, bandara dengan pesawat — traffic dan pejalan kaki hidup di jalanan.
 - Wanted level 0–5 bintang: polisi mengejar dengan mobil dan jalan kaki (lampu merah-biru berkedip), wanted turun kalau kamu bersembunyi. Dari 3 bintang, helikopter polisi mengikutimu dengan sorot lampu.
 - **Siklus siang–malam**: waktu berjalan (jam di HUD), senja golden-hour, malam hari jendela menyala + lampu mobil menyala, polisi lebih agresif dan wanted lebih lama hilang di malam hari. Neon sign + pohon palem bikin Solmar Bay beda dari kota lain.
-- 5 misi cerita berurutan + uang jalanan, taksi, dan pickup kesehatan/amunisi. Save otomatis di browser (localStorage).
-- HUD lengkap: uang, nyawa, bintang wanted, amunisi, kecepatan, objektif misi, dan minimap kota.
+- 5 misi cerita berurutan + uang jalanan, taksi, dan pickup kesehatan/amunisi/senjata. Save otomatis di browser (localStorage).
+- HUD lengkap: uang, nyawa, bintang wanted, senjata + amunisi, kecepatan, objektif misi, dan minimap kota (jalan, blok, target misi, polisi, arah hadap pemain).
 
 ## Struktur
 

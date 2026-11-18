@@ -1066,10 +1066,12 @@ function updateWorld3D(api, state, dt) {
   var darkness = updateLighting(api, state);
 
   // Player.
-  // Player: Rico is BIG in frame now (scale 1.45) — a street-level hero,
-  // not a speck on the asphalt. His yellow shirt + red cap stay the anchor.
+  // Player: Rico is a realistic height now (scale 0.78, ~1.9 units tall) —
+  // his head sits just above a sedan roof (~1.3), the way a real person
+  // does. The old 1.45 made him a ~3.4-unit giant towering over cars.
+  // His yellow shirt + red cap stay the anchor.
   if (!api.playerMesh) {
-    api.playerMesh = api.buildPerson(0xf2c94c, 0x2c3e50, 0xe8b98a, { hair: 0x111111, hat: 'cap', hatColor: 0xe74c3c, scale: 1.45 });
+    api.playerMesh = api.buildPerson(0xf2c94c, 0x2c3e50, 0xe8b98a, { hair: 0x111111, hat: 'cap', hatColor: 0xe74c3c, scale: 0.78 });
     api.scene.add(api.playerMesh);
   }
   var player = state.player;
@@ -1097,13 +1099,14 @@ function updateWorld3D(api, state, dt) {
     if (mesh.userData.coneMat) mesh.userData.coneMat.opacity = darkness > 0.1 ? 0.14 : 0;
   });
 
-  // Pedestrians and foot cops — every person is scaled x1.4 on top of their
-  // own heightScale, so crowds read as people, not dots, from the street.
+  // Pedestrians and foot cops — realistic scale (x0.72 on top of their
+  // own heightScale, so a person is ~1.7 units tall: head just above a
+  // sedan roof, clearly a human, never a giant next to a car).
   syncActor(api, api.pedMeshes, state.peds, function (ped) {
-    return api.buildPerson(new THREE.Color(ped.color).getHex(), new THREE.Color(ped.pants || '#2c2c34').getHex(), new THREE.Color(ped.skin || '#e8b98a').getHex(), { hair: ped.hair, hat: ped.hat, hatColor: ped.hatColor, bag: ped.bag, bagColor: ped.bagColor, scale: (ped.heightScale || 1) * 1.4, gun: ped.hostile });
+    return api.buildPerson(new THREE.Color(ped.color).getHex(), new THREE.Color(ped.pants || '#2c2c34').getHex(), new THREE.Color(ped.skin || '#e8b98a').getHex(), { hair: ped.hair, hat: ped.hat, hatColor: ped.hatColor, bag: ped.bag, bagColor: ped.bagColor, scale: (ped.heightScale || 1) * 0.72, gun: ped.hostile });
   }, placePerson);
   syncActor(api, api.copMeshes, state.cops, function () {
-    return api.buildPerson(0x2f6fd0, 0x1a2530, 0xe8b98a, { hat: 'cap', hatColor: 0x1a2530, gun: true, scale: 1.4 });
+    return api.buildPerson(0x2f6fd0, 0x1a2530, 0xe8b98a, { hat: 'cap', hatColor: 0x1a2530, gun: true, scale: 0.75 });
   }, placePerson);
 
   // Helicopter.
@@ -1136,12 +1139,22 @@ function updateWorld3D(api, state, dt) {
   // Pickups.
   syncActor(api, api.pickupMeshes, state.pickups, function (pickup) {
     var g = new THREE.Group();
-    var color = pickup.kind === 'cash' ? 0xffd94d : pickup.kind === 'health' ? 0xffffff : 0x2ecc71;
+    var color = pickup.kind === 'cash' ? 0xffd94d : pickup.kind === 'health' ? 0xffffff : pickup.kind === 'weapon' ? (pickup.weapon === 'shotgun' ? 0xff6d00 : 0x00e5ff) : 0x2ecc71;
     var gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.7), new THREE.MeshBasicMaterial({ color: color }));
     g.add(gem);
     if (pickup.kind === 'health') {
       var cross = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.3, 0.3), new THREE.MeshBasicMaterial({ color: 0xe5534b }));
       g.add(cross);
+    }
+    // Weapon pickups read as a gun at a glance: a dark barrel + stock
+    // floating over the coloured gem, orange for shotgun, cyan for rifle.
+    if (pickup.kind === 'weapon') {
+      var barrel = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.16, 0.16), new THREE.MeshLambertMaterial({ color: 0x222222 }));
+      barrel.position.set(0, 0.55, 0);
+      g.add(barrel);
+      var stock = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.3, 0.2), new THREE.MeshLambertMaterial({ color: 0x5d4037 }));
+      stock.position.set(-0.8, 0.42, 0);
+      g.add(stock);
     }
     api.blobShadow(g, 0.7);
     return g;
