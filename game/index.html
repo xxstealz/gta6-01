@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Solmar Bay — Open World Crime 3D</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+<canvas id="game" aria-label="Solmar Bay: game open-world crime 3D. Jelajahi kota jalan kaki atau naik mobil, curi mobil, kabur dari polisi dan selesaikan misi."></canvas>
+<div id="hud">
+  <div id="top-left">
+    <div id="money">$0</div>
+    <div id="health-bar"><div id="health-fill"></div></div>
+    <div id="health-text">100 HP</div>
+    <div id="ammo">🔫 48</div>
+  </div>
+  <div id="top-right">
+    <div id="stars">☆☆☆☆☆</div>
+    <div id="clock">🌇 17:10</div>
+    <div id="speed"></div>
+  </div>
+  <div id="objective">
+    <div id="objective-title">Solmar Bay</div>
+    <div id="objective-text"></div>
+  </div>
+  <div id="message"></div>
+  <div id="hint"></div>
+  <div id="crosshair">+</div>
+  <canvas id="minimap" width="220" height="168"></canvas>
+</div>
+<div id="overlay">
+  <div id="overlay-card">
+    <h1 id="overlay-title">SOLMAR BAY</h1>
+    <p id="overlay-text"></p>
+    <div id="overlay-buttons"></div>
+    <p id="overlay-foot">Game original buatan sendiri — kota, karakter, dan cerita Solmar Bay. Tanpa aset game komersial.</p>
+  </div>
+</div>
+<p id="status" role="status" aria-live="polite"></p>
+<script src="./vendor/three.min.js"></script>
+<script src="./src/config.js"></script>
+<script src="./src/random.js"></script>
+<script src="./src/city.js"></script>
+<script src="./src/audio.js"></script>
+<script src="./src/input.js"></script>
+<script src="./src/save.js"></script>
+<script src="./src/vehicles.js"></script>
+<script src="./src/pedestrians.js"></script>
+<script src="./src/police.js"></script>
+<script src="./src/missions.js"></script>
+<script src="./src/combat.js"></script>
+<script src="./src/hud.js"></script>
+<script src="./src/minimap.js"></script>
+<script src="./src/render3d.js"></script>
+<script src="./src/shots.js"></script>
+<script src="./src/main.js"></script>
+</body>
+</html>
